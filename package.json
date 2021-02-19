@@ -1,0 +1,33 @@
+{
+  "name": "@huds0n/shared-state-store-rn",
+  "version": "1.5.0-beta.8",
+  "description": "Share States React Native store creator",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "keywords": [
+    "state",
+    "shared",
+    "global",
+    "react",
+    "reactnative",
+    "store"
+  ],
+  "contributors": [
+    {
+      "name": "J Hudson"
+    },
+    {
+      "name": "M Hudson"
+    }
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@huds0n/error": "1.5.0-beta.8",
+    "@huds0n/shared-state": "1.5.0-beta.8",
+    "react-native-crypto-js": "^1.0.0",
+    "@react-native-async-storage/async-storage": "^1.13.4"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
