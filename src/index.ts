@@ -17,7 +17,7 @@ export namespace createStoreRN {
     excludeKeys?: string[];
     includeKeys?: string[];
     replacer?: ReplacerFn;
-    reviver?: (key: string, value: any) => any;
+    reviver?: ReviverFn;
     saveOnBackground?: boolean;
     saveAutomatically?: boolean;
     storeName: string;
@@ -34,7 +34,7 @@ export function createStoreRN<S extends SharedState.State>({
   includeKeys,
   replacer,
   reviver,
-  saveOnBackground,
+  saveOnBackground = false,
   saveAutomatically = false,
   storeName,
 }: createStoreRN.Options): createStoreRN.CreateStateStoreFunction<S> {
