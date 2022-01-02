@@ -13,7 +13,7 @@ export namespace createStoreRN {
   export type ReviverFn = (key: string, value: any) => any;
 
   export type Options = {
-    encryptionKey?: string;
+    encryptionKey?: string | null;
     excludeKeys?: string[];
     includeKeys?: string[];
     replacer?: ReplacerFn;
@@ -23,9 +23,8 @@ export namespace createStoreRN {
     storeName: string;
   };
 
-  export type CreateStateStoreFunction<
-    S extends State
-  > = SharedState.CreateStateStoreFunction<S>;
+  export type CreateStateStoreFunction<S extends State> =
+    SharedState.CreateStateStoreFunction<S>;
 }
 
 export function createStoreRN<S extends SharedState.State>({
@@ -85,6 +84,7 @@ export function createStoreRN<S extends SharedState.State>({
               (key) => (retrievedState[key] = currentState[key]),
             );
           }
+
           return retrievedState;
         } catch (error) {
           throw Error.transform(error, {
