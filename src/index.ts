@@ -1,151 +1,152 @@
-import { AppState } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 // @ts-ignore
-import CryptoJS from 'react-native-crypto-js';
+import CryptoJS from "react-native-crypto-js";
 
-import Error from '@huds0n/error';
-import { SharedState } from '@huds0n/shared-state';
+import Error from "@huds0n/error";
+import type { SharedState } from "@huds0n/shared-state";
 
-export namespace createStoreRN {
-  type State = SharedState.State;
+import type { Types } from "./types";
 
-  export type ReplacerFn = (key: string, value: any) => any;
-  export type ReviverFn = (key: string, value: any) => any;
+export class SharedStateStore<S> {
+  private _options: Types.Options<S>;
+  private _sharedState: SharedState<S>;
 
-  export type Options = {
-    encryptionKey?: string | null;
-    excludeKeys?: string[];
-    includeKeys?: string[];
-    replacer?: ReplacerFn;
-    reviver?: ReviverFn;
-    saveOnBackground?: boolean;
-    saveAutomatically?: boolean;
-    storeName: string;
-  };
+  constructor(sharedState: SharedState<S>, options: Types.Options<S>) {
+    const { load = true, saveAutomatically, saveOnBackground } = options;
 
-  export type CreateStateStoreFunction<S extends State> =
-    SharedState.CreateStateStoreFunction<S>;
-}
+    this._options = options;
+    this._sharedState = sharedState;
 
-export function createStoreRN<S extends SharedState.State>({
-  encryptionKey,
-  excludeKeys,
-  includeKeys,
-  replacer,
-  reviver,
-  saveOnBackground = false,
-  saveAutomatically = false,
-  storeName,
-}: createStoreRN.Options): createStoreRN.CreateStateStoreFunction<S> {
-  return <S extends SharedState.State>(getState: () => S) => {
-    const store = {
-      storeName,
-      saveAutomatically,
-
-      async delete(): Promise<boolean> {
-        try {
-          await AsyncStorage.removeItem(storeName);
-          return true;
-        } catch (error) {
-          Error.transform(error, {
-            name: 'State Error',
-            code: 'STORAGE_DELETE_ERROR',
-            message: 'Unable to delete state',
-            info: { storeName },
-            severity: 'HIGH',
-          });
-          return false;
-        }
-      },
-
-      async retrieve(): Promise<S | null> {
-        try {
-          let stateString = (await AsyncStorage.getItem(
-            this.storeName,
-          )) as string;
-
-          if (!stateString) {
-            return null;
-          }
-
-          if (encryptionKey && stateString) {
-            stateString = CryptoJS.AES.decrypt(stateString, encryptionKey);
-            // @ts-ignore
-            stateString = stateString.toString(CryptoJS.enc.Utf8);
-          }
-
-          let retrievedState = JSON.parse(stateString, reviver);
-
-          if (includeKeys) {
-            retrievedState = { ...getState(), ...retrievedState };
-          } else if (excludeKeys) {
-            const currentState = getState();
-            excludeKeys.forEach(
-              (key) => (retrievedState[key] = currentState[key]),
-            );
-          }
-
-          return retrievedState;
-        } catch (error) {
-          throw Error.transform(error, {
-            name: 'State Error',
-            code: 'STORAGE_ERROR',
-            message: 'Error loading from storage',
-            severity: 'HIGH',
-          });
-        }
-      },
-
-      async save(): Promise<boolean> {
-        try {
-          let saveState: any = getState();
-
-          if (includeKeys || excludeKeys) {
-            const saveEntries = Object.entries(saveState).filter(([key]) =>
-              includeKeys
-                ? includeKeys.includes(key)
-                : !excludeKeys?.includes(key),
-            );
-
-            if (!saveEntries.length) {
-              return false;
-            }
-
-            saveState = Object.fromEntries(saveEntries);
-          }
-
-          let stateString = JSON.stringify(saveState, replacer);
-          if (encryptionKey) {
-            stateString = CryptoJS.AES.encrypt(
-              stateString,
-              encryptionKey,
-            ).toString();
-          }
-          await AsyncStorage.setItem(storeName, stateString);
-
-          return true;
-        } catch (error) {
-          Error.transform(error, {
-            name: 'State Error',
-            code: 'STORAGE_SAVE_ERROR',
-            message: 'Unable to save state',
-            info: { storeName },
-            severity: 'HIGH',
-          });
-
-          return false;
-        }
-      },
-    };
+    if (saveAutomatically) {
+      sharedState.addListener(() => {
+        this.save();
+      });
+    }
 
     if (saveOnBackground) {
-      AppState.addEventListener('change', (nextAppState) => {
-        if (nextAppState === 'background') {
-          store.save();
+      AppState.addEventListener("change", (nextAppState) => {
+        if (nextAppState === "background") {
+          this.save();
         }
       });
     }
 
-    return store;
-  };
+    if (load) {
+      this.load();
+    }
+
+    this.delete = this.delete.bind(this);
+    this.load = this.load.bind(this);
+    this.save = this.save.bind(this);
+  }
+
+  get name() {
+    return this._options.storeName;
+  }
+
+  get sharedState() {
+    return this._sharedState;
+  }
+
+  async save(state: S = this._sharedState.state): Promise<boolean> {
+    const { encryptionKey, excludeKeys, includeKeys, replacer, storeName } =
+      this._options;
+
+    try {
+      let saveState: Partial<S> = state;
+
+      if (includeKeys || excludeKeys) {
+        const saveEntries = Object.entries(saveState).filter(([key]) =>
+          includeKeys
+            ? includeKeys.includes(key as keyof S)
+            : !excludeKeys?.includes(key as keyof S)
+        );
+
+        if (!saveEntries.length) {
+          return false;
+        }
+
+        saveState = Object.fromEntries(saveEntries) as Partial<S>;
+      }
+
+      let stateString = JSON.stringify(saveState, replacer);
+      if (encryptionKey) {
+        stateString = CryptoJS.AES.encrypt(
+          stateString,
+          encryptionKey
+        ).toString();
+      }
+      await AsyncStorage.setItem(storeName, stateString);
+
+      return true;
+    } catch (error) {
+      Error.transform(error, {
+        name: "State Error",
+        code: "STORAGE_SAVE_ERROR",
+        message: "Unable to save state",
+        info: { storeName },
+        severity: "HIGH",
+      });
+
+      return false;
+    }
+  }
+
+  async load(): Promise<Partial<S> | null> {
+    const { encryptionKey, excludeKeys, includeKeys, reviver, storeName } =
+      this._options;
+
+    try {
+      let stateString = (await AsyncStorage.getItem(storeName)) as string;
+
+      if (!stateString) {
+        return null;
+      }
+
+      if (encryptionKey && stateString) {
+        stateString = CryptoJS.AES.decrypt(stateString, encryptionKey);
+        // @ts-ignore
+        stateString = stateString.toString(CryptoJS.enc.Utf8);
+      }
+
+      let retrievedState: Partial<S> = JSON.parse(stateString, reviver);
+
+      if (includeKeys) {
+        retrievedState = { ...this._sharedState.state, ...retrievedState };
+      } else if (excludeKeys) {
+        const currentState = this._sharedState.state;
+        excludeKeys.forEach((key) => (retrievedState[key] = currentState[key]));
+      }
+
+      this._sharedState.setState(retrievedState);
+
+      return retrievedState;
+    } catch (error) {
+      throw Error.transform(error, {
+        name: "State Error",
+        code: "STORAGE_ERROR",
+        message: "Error loading from storage",
+        severity: "HIGH",
+      });
+    }
+  }
+
+  async delete(): Promise<void> {
+    const { storeName } = this._options;
+
+    try {
+      await AsyncStorage.removeItem(storeName);
+    } catch (error) {
+      throw Error.transform(error, {
+        name: "State Error",
+        code: "STORAGE_DELETE_ERROR",
+        message: "Unable to delete state",
+        info: { storeName },
+        severity: "HIGH",
+      });
+    }
+  }
 }
+
+export type { Types as SharedStateStoreRNTypes };
