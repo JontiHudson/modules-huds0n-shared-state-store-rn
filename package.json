@@ -1,6 +1,6 @@
 {
   "name": "@huds0n/shared-state-store-rn",
-  "version": "1.6.0-beta54",
+  "version": "1.6.0-beta60",
   "description": "Share States React Native store creator",
   "main": "./index.js",
   "types": "./index.d.ts",
@@ -22,8 +22,8 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@huds0n/error": "1.6.0-beta54",
-    "@huds0n/shared-state": "1.6.0-beta54",
+    "@huds0n/error": "1.6.0-beta60",
+    "@huds0n/shared-state": "1.6.0-beta60",
     "@react-native-async-storage/async-storage": "~1.15.0",
     "react-native-crypto-js": "^1.0.0",
     "tslib": "^2.3.1"
