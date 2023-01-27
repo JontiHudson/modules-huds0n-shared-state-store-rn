@@ -1,4 +1,4 @@
-import { SharedStateTypes } from "@huds0n/shared-state";
+import { SharedStateTypes } from '@huds0n/shared-state';
 
 export declare namespace Types {
   export type Replacer = (key: string, value: any) => any;

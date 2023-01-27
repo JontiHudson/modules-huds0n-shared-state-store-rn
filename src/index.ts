@@ -1,14 +1,12 @@
-import { AppState } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-// @ts-ignore
-import CryptoJS from "react-native-crypto-js";
+import Huds0nError from '@huds0n/error';
+import type { SharedState, SharedStateTypes } from '@huds0n/shared-state';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import CryptoES from 'crypto-es';
+import { AppState } from 'react-native';
 
-import Error from "@huds0n/error";
-import type { SharedState } from "@huds0n/shared-state";
+import type { Types } from './types';
 
-import type { Types } from "./types";
-
-export class SharedStateStore<S> {
+export class SharedStateStore<S extends SharedStateTypes.State> {
   private _options: Types.Options<S>;
   private _sharedState: SharedState<S>;
 
@@ -19,14 +17,20 @@ export class SharedStateStore<S> {
     this._sharedState = sharedState;
 
     if (saveAutomatically) {
+      const trigger = options.excludeKeys
+        ? (Object.keys(sharedState).filter((k) =>
+            options.excludeKeys!.includes(k as keyof S),
+          ) as (keyof S)[])
+        : options.includeKeys;
+
       sharedState.addListener(() => {
         this.save();
-      });
+      }, trigger);
     }
 
     if (saveOnBackground) {
-      AppState.addEventListener("change", (nextAppState) => {
-        if (nextAppState === "background") {
+      AppState.addEventListener('change', (nextAppState) => {
+        if (nextAppState === 'background') {
           this.save();
         }
       });
@@ -60,7 +64,7 @@ export class SharedStateStore<S> {
         const saveEntries = Object.entries(saveState).filter(([key]) =>
           includeKeys
             ? includeKeys.includes(key as keyof S)
-            : !excludeKeys?.includes(key as keyof S)
+            : !excludeKeys?.includes(key as keyof S),
         );
 
         if (!saveEntries.length) {
@@ -72,28 +76,29 @@ export class SharedStateStore<S> {
 
       let stateString = JSON.stringify(saveState, replacer);
       if (encryptionKey) {
-        stateString = CryptoJS.AES.encrypt(
+        stateString = CryptoES.AES.encrypt(
           stateString,
-          encryptionKey
+          encryptionKey,
         ).toString();
       }
       await AsyncStorage.setItem(storeName, stateString);
 
       return true;
     } catch (error) {
-      Error.transform(error, {
-        name: "State Error",
-        code: "STORAGE_SAVE_ERROR",
-        message: "Unable to save state",
+      Huds0nError.create({
+        name: 'State Error',
+        code: 'STORAGE_SAVE_ERROR',
+        message: 'Unable to save state',
         info: { storeName },
-        severity: "HIGH",
+        severity: 'ERROR',
+        from: error,
       });
 
       return false;
     }
   }
 
-  async load(): Promise<Partial<S> | null> {
+  async load(): Promise<Partial<S> | undefined> {
     const { encryptionKey, excludeKeys, includeKeys, reviver, storeName } =
       this._options;
 
@@ -101,13 +106,15 @@ export class SharedStateStore<S> {
       let stateString = (await AsyncStorage.getItem(storeName)) as string;
 
       if (!stateString) {
-        return null;
+        await this.save();
+        return undefined;
       }
 
       if (encryptionKey && stateString) {
-        stateString = CryptoJS.AES.decrypt(stateString, encryptionKey);
-        // @ts-ignore
-        stateString = stateString.toString(CryptoJS.enc.Utf8);
+        stateString = CryptoES.AES.decrypt(
+          stateString,
+          encryptionKey,
+        ).toString();
       }
 
       let retrievedState: Partial<S> = JSON.parse(stateString, reviver);
@@ -123,11 +130,12 @@ export class SharedStateStore<S> {
 
       return retrievedState;
     } catch (error) {
-      throw Error.transform(error, {
-        name: "State Error",
-        code: "STORAGE_ERROR",
-        message: "Error loading from storage",
-        severity: "HIGH",
+      throw Huds0nError.create({
+        name: 'State Error',
+        code: 'STORAGE_ERROR',
+        message: 'Error loading from storage',
+        severity: 'ERROR',
+        from: error,
       });
     }
   }
@@ -138,12 +146,13 @@ export class SharedStateStore<S> {
     try {
       await AsyncStorage.removeItem(storeName);
     } catch (error) {
-      throw Error.transform(error, {
-        name: "State Error",
-        code: "STORAGE_DELETE_ERROR",
-        message: "Unable to delete state",
+      throw Huds0nError.create({
+        name: 'State Error',
+        code: 'STORAGE_DELETE_ERROR',
+        message: 'Unable to delete state',
         info: { storeName },
-        severity: "HIGH",
+        severity: 'ERROR',
+        from: error,
       });
     }
   }
